@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 
+// Importação das imagens que você subiu na pasta src
+import brasao from './brasao-escola.png'; 
+import favicon from './favicon.ico';
+
 function App() {
   const [alunos, setAlunos] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -24,21 +28,26 @@ function App() {
         ...aluno,
         peiStatus: listaStatus.filter(s => s.aluno_id === aluno.id)
       }));
-
       setAlunos(alunosFormatados);
     } catch (error) {
-      console.error("Erro:", error.message);
+      console.error("Erro ao carregar dados:", error.message);
     } finally {
       setCarregando(false);
     }
   };
 
-  useEffect(() => { fetchAlunos(); }, []);
+  useEffect(() => {
+    fetchAlunos();
+    
+    // Define o título e o ícone da aba (Favicon)
+    document.title = "Gestão de PEIs - EEMDP2";
+    const link = document.querySelector("link[rel~='icon']");
+    if (link) link.href = favicon;
+  }, []);
 
-  // --- FUNÇÃO PARA GERAR O TEXTO E COPIAR/ENVIAR ---
-  const gerarTextoPendencias = () => {
+  const copiarEEnviar = () => {
     const alunosFiltrados = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
-    let mensagem = `*📌 RELATÓRIO DE PENDÊNCIAS PEI 2026*\n\n`;
+    let mensagem = `*📌 PENDÊNCIAS PEI 2026 - EEMDP2*\n\n`;
     const turmasAgrupadas = {};
 
     alunosFiltrados.forEach(aluno => {
@@ -56,14 +65,10 @@ function App() {
     Object.keys(turmasAgrupadas).sort().forEach(turma => {
       mensagem += `📍 *TURMA: ${turma}*\n${turmasAgrupadas[turma].join('\n')}\n\n`;
     });
-    return mensagem;
-  };
 
-  const copiarEEnviar = () => {
-    const texto = gerarTextoPendencias();
-    navigator.clipboard.writeText(texto).then(() => {
+    navigator.clipboard.writeText(mensagem).then(() => {
       alert("✅ Relatório copiado para a área de transferência!");
-      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`, '_blank');
     });
   };
 
@@ -83,75 +88,89 @@ function App() {
     }
   };
 
-  // --- ESTILOS COM HOVER ---
   const getBotaoEstilo = (status) => ({
     backgroundColor: status === 'Concluído' ? '#28a745' : status === 'Em Correção' ? '#ffc107' : '#fff',
     color: status === 'Concluído' ? '#fff' : '#333',
     border: '1px solid #ccc',
     borderRadius: '8px',
-    padding: '8px 14px',
+    padding: '10px 16px',
     margin: '4px',
-    fontSize: '13px',
+    fontSize: '14px', 
     fontWeight: 'bold',
     cursor: 'pointer',
-    transition: 'transform 0.1s, filter 0.2s',
+    transition: 'all 0.2s ease',
+    opacity: 1
   });
 
   const turmasUnicas = ['Todas', ...new Set(alunos.map(a => a.turma))];
   const alunosParaExibir = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
 
-  if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>⏳ Carregando Painel...</div>;
+  if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>⏳ Carregando sistema...</div>;
 
   return (
-    <div style={{ padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh', fontFamily: 'sans-serif' }}>
-      {/* CSS Injetado para efeito Hover */}
+    <div style={{ padding: '20px', backgroundColor: '#f0f2f5', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       <style>{`
-        button:hover { filter: brightness(0.9); transform: scale(1.02); }
-        select:hover { border-color: #1a73e8; }
+        .btn-disciplina:hover { 
+          filter: brightness(0.9); 
+          transform: translateY(-2px); 
+          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .header-container {
+          background-color: #fff; padding: 20px; border-radius: 15px; margin-bottom: 20px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: flex; justify-content: space-between;
+          align-items: center; flex-wrap: wrap; gap: 20px;
+        }
       `}</style>
 
-      <header style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '15px', marginBottom: '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ color: '#2c3e50', margin: 0 }}>📊 Gestão de PEIs - EEMDP2</h1>
-          <p style={{ color: '#95a5a6', margin: '5px 0 0 0' }}>⚪ Pendente | 🟡 Correção | 🟢 Concluído</p>
+      <header className="header-container">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <img src={brasao} alt="Brasão" style={{ height: '70px', width: 'auto' }} />
+          <div>
+            <h1 style={{ color: '#1a73e8', margin: 0, fontSize: '26px' }}>Gestão de PEIs - EEMDP2</h1>
+            <p style={{ color: '#95a5a6', margin: '5px 0 0 0' }}>Legenda: ⚪ Pendente | 🟡 Correção | 🟢 Concluído</p>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'pointer' }}>
-            {turmasUnicas.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
+
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ textAlign: 'right', marginRight: '10px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>TURMA:</label>
+            <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '10px', borderRadius: '8px', cursor: 'pointer', border: '1px solid #ddd' }}>
+              {turmasUnicas.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
           <button 
             onClick={copiarEEnviar} 
-            style={{ backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}
+            style={{ backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '14px 24px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}
           >
-            📋 Copiar e Enviar WhatsApp
+            📱 Enviar Pendências
           </button>
         </div>
       </header>
 
-      <div style={{ overflowX: 'auto', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
+      <div style={{ overflowX: 'auto', borderRadius: '15px', boxShadow: '0 8px 24px rgba(0,0,0,0.05)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff' }}>
           <thead>
-            <tr style={{ backgroundColor: '#2c3e50', color: '#fff', textAlign: 'left' }}>
-              <th style={{ padding: '18px' }}>Estudante</th>
-              <th style={{ padding: '18px' }}>Turma</th>
-              <th style={{ padding: '15px' }}>Disciplinas (Clique para mudar)</th>
+            <tr style={{ backgroundColor: '#1a73e8', color: '#fff', textAlign: 'left' }}>
+              <th style={{ padding: '20px' }}>Estudante</th>
+              <th style={{ padding: '20px' }}>Turma</th>
+              <th style={{ padding: '20px' }}>Status por Disciplina</th>
             </tr>
           </thead>
           <tbody>
             {alunosParaExibir.map(aluno => (
-              <tr key={aluno.id} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: '15px', fontWeight: 'bold', minWidth: '220px' }}>{aluno.nome}</td>
-                <td style={{ padding: '15px' }}>{aluno.turma}</td>
-                <td style={{ padding: '15px' }}>
+              <tr key={aluno.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                <td style={{ padding: '18px', fontWeight: 'bold', color: '#2c3e50', minWidth: '250px' }}>{aluno.nome}</td>
+                <td style={{ padding: '18px', color: '#666', fontWeight: 'bold' }}>{aluno.turma}</td>
+                <td style={{ padding: '10px 18px' }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap' }}>
                     {aluno.peiStatus
                       .sort((a, b) => (a.disciplinas?.ordem_exibicao || 0) - (b.disciplinas?.ordem_exibicao || 0))
                       .map(item => (
                         <button 
                           key={item.disciplina_id} 
+                          className="btn-disciplina"
                           onClick={() => alternarStatus(aluno.id, item.disciplina_id, item.status)} 
                           style={getBotaoEstilo(item.status)}
-                          title={`Status: ${item.status}`}
                         >
                           {item.disciplinas?.nome}
                         </button>
