@@ -17,12 +17,7 @@ function App() {
 
       const { data: listaStatus } = await supabase
         .from('status_pei')
-        .select(`
-          status, 
-          aluno_id, 
-          disciplina_id, 
-          disciplinas (nome, ordem_exibicao)
-        `)
+        .select(`status, aluno_id, disciplina_id, disciplinas (nome, ordem_exibicao)`)
         .order('ordem_exibicao', { foreignTable: 'disciplinas', ascending: true });
 
       const alunosFormatados = listaAlunos.map(aluno => ({
@@ -40,7 +35,8 @@ function App() {
 
   useEffect(() => { fetchAlunos(); }, []);
 
-  const enviarRelatorioWhatsapp = () => {
+  // --- FUNÇÃO PARA GERAR O TEXTO E COPIAR/ENVIAR ---
+  const gerarTextoPendencias = () => {
     const alunosFiltrados = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
     let mensagem = `*📌 RELATÓRIO DE PENDÊNCIAS PEI 2026*\n\n`;
     const turmasAgrupadas = {};
@@ -60,8 +56,15 @@ function App() {
     Object.keys(turmasAgrupadas).sort().forEach(turma => {
       mensagem += `📍 *TURMA: ${turma}*\n${turmasAgrupadas[turma].join('\n')}\n\n`;
     });
+    return mensagem;
+  };
 
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`, '_blank');
+  const copiarEEnviar = () => {
+    const texto = gerarTextoPendencias();
+    navigator.clipboard.writeText(texto).then(() => {
+      alert("✅ Relatório copiado para a área de transferência!");
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
+    });
   };
 
   const alternarStatus = async (alunoId, disciplinaId, statusAtual) => {
@@ -80,18 +83,18 @@ function App() {
     }
   };
 
-  // --- AJUSTE DE TAMANHO DOS BOTÕES ---
+  // --- ESTILOS COM HOVER ---
   const getBotaoEstilo = (status) => ({
     backgroundColor: status === 'Concluído' ? '#28a745' : status === 'Em Correção' ? '#ffc107' : '#fff',
     color: status === 'Concluído' ? '#fff' : '#333',
     border: '1px solid #ccc',
     borderRadius: '8px',
-    padding: '8px 14px', // Aumentado para melhor clique
+    padding: '8px 14px',
     margin: '4px',
-    fontSize: '13px',    // Aumentado de 10px para 13px para leitura no PC
+    fontSize: '13px',
     fontWeight: 'bold',
     cursor: 'pointer',
-    whiteSpace: 'nowrap'
+    transition: 'transform 0.1s, filter 0.2s',
   });
 
   const turmasUnicas = ['Todas', ...new Set(alunos.map(a => a.turma))];
@@ -101,17 +104,26 @@ function App() {
 
   return (
     <div style={{ padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+      {/* CSS Injetado para efeito Hover */}
+      <style>{`
+        button:hover { filter: brightness(0.9); transform: scale(1.02); }
+        select:hover { border-color: #1a73e8; }
+      `}</style>
+
       <header style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '15px', marginBottom: '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ color: '#2c3e50', margin: 0 }}>📊 Gestão de PEIs - EEMDP2</h1>
           <p style={{ color: '#95a5a6', margin: '5px 0 0 0' }}>⚪ Pendente | 🟡 Correção | 🟢 Concluído</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+          <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'pointer' }}>
             {turmasUnicas.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
-          <button onClick={enviarRelatorioWhatsapp} style={{ backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-            📱 Enviar Faltantes
+          <button 
+            onClick={copiarEEnviar} 
+            style={{ backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}
+          >
+            📋 Copiar e Enviar WhatsApp
           </button>
         </div>
       </header>
@@ -122,20 +134,25 @@ function App() {
             <tr style={{ backgroundColor: '#2c3e50', color: '#fff', textAlign: 'left' }}>
               <th style={{ padding: '18px' }}>Estudante</th>
               <th style={{ padding: '18px' }}>Turma</th>
-              <th style={{ padding: '18px' }}>Disciplinas (Clique para alterar)</th>
+              <th style={{ padding: '15px' }}>Disciplinas (Clique para mudar)</th>
             </tr>
           </thead>
           <tbody>
             {alunosParaExibir.map(aluno => (
               <tr key={aluno.id} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: '15px', fontWeight: 'bold', minWidth: '200px' }}>{aluno.nome}</td>
+                <td style={{ padding: '15px', fontWeight: 'bold', minWidth: '220px' }}>{aluno.nome}</td>
                 <td style={{ padding: '15px' }}>{aluno.turma}</td>
                 <td style={{ padding: '15px' }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap' }}>
                     {aluno.peiStatus
                       .sort((a, b) => (a.disciplinas?.ordem_exibicao || 0) - (b.disciplinas?.ordem_exibicao || 0))
                       .map(item => (
-                        <button key={item.disciplina_id} onClick={() => alternarStatus(aluno.id, item.disciplina_id, item.status)} style={getBotaoEstilo(item.status)}>
+                        <button 
+                          key={item.disciplina_id} 
+                          onClick={() => alternarStatus(aluno.id, item.disciplina_id, item.status)} 
+                          style={getBotaoEstilo(item.status)}
+                          title={`Status: ${item.status}`}
+                        >
                           {item.disciplinas?.nome}
                         </button>
                       ))}
