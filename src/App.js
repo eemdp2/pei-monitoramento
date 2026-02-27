@@ -5,11 +5,11 @@ function App() {
   const [alunos, setAlunos] = useState([]);
   const [carregando, setCarregando] = useState(true);
 
-  // 1. Busca os alunos e seus respectivos status de PEI
+  // 1. Busca os dados no banco com a nova ordenação automática
   const fetchAlunos = async () => {
     setCarregando(true);
     try {
-      // Busca alunos, ordenando por turma e nome
+      // Busca lista de alunos ordenada por turma e nome
       const { data: listaAlunos, error: errorAlunos } = await supabase
         .from('alunos')
         .select('*')
@@ -18,19 +18,20 @@ function App() {
 
       if (errorAlunos) throw errorAlunos;
 
-      // Busca todos os status vinculados e o nome da disciplina
+      // Busca os status já ordenados pela coluna 'ordem_exibicao' da tabela disciplinas
       const { data: listaStatus, error: errorStatus } = await supabase
         .from('status_pei')
         .select(`
           status,
           aluno_id,
           disciplina_id,
-          disciplinas (nome)
-        `);
+          disciplinas (nome, ordem_exibicao)
+        `)
+        .order('ordem_exibicao', { foreignTable: 'disciplinas', ascending: true });
 
       if (errorStatus) throw errorStatus;
 
-      // Cruza os dados: adiciona a lista de status dentro de cada objeto de aluno
+      // Cruza os dados: insere os status dentro de cada aluno
       const alunosFormatados = listaAlunos.map(aluno => ({
         ...aluno,
         peiStatus: listaStatus.filter(s => s.aluno_id === aluno.id)
@@ -38,7 +39,7 @@ function App() {
 
       setAlunos(alunosFormatados);
     } catch (error) {
-      console.error("Erro ao carregar dados:", error.message);
+      console.error("Erro na busca:", error.message);
     } finally {
       setCarregando(false);
     }
@@ -48,7 +49,7 @@ function App() {
     fetchAlunos();
   }, []);
 
-  // 2. Função para alternar o status ao clicar (Branco -> Amarelo -> Verde)
+  // 2. Função para alternar status (Branco -> Amarelo -> Verde)
   const alternarStatus = async (alunoId, disciplinaId, statusAtual) => {
     const proximos = {
       'Não Iniciado': 'Em Correção',
@@ -67,8 +68,8 @@ function App() {
       }, { onConflict: ['aluno_id', 'disciplina_id'] });
 
     if (!error) {
-      // Atualização otimista na tela (sem precisar recarregar tudo do banco)
-      setAlunos(prevAlunos => prevAlunos.map(aluno => {
+      // Atualização imediata na tela para melhor experiência do usuário
+      setAlunos(prev => prev.map(aluno => {
         if (aluno.id === alunoId) {
           return {
             ...aluno,
@@ -79,68 +80,65 @@ function App() {
         }
         return aluno;
       }));
-    } else {
-      alert("Erro ao salvar: " + error.message);
     }
   };
 
-  // 3. Estilização dinâmica baseada no status
-  const getEstiloStatus = (status) => ({
+  // 3. Estilos dos botões
+  const getBotaoEstilo = (status) => ({
     backgroundColor: status === 'Concluído' ? '#28a745' : status === 'Em Correção' ? '#ffc107' : '#fff',
-    color: status === 'Concluído' ? '#fff' : '#000',
+    color: status === 'Concluído' ? '#fff' : '#333',
     border: '1px solid #ccc',
-    borderRadius: '15px',
-    padding: '4px 10px',
+    borderRadius: '20px',
+    padding: '6px 12px',
     margin: '3px',
     fontSize: '11px',
+    fontWeight: '600',
     cursor: 'pointer',
-    fontWeight: '500',
-    transition: 'all 0.2s'
+    transition: 'all 0.2s ease'
   });
 
-  if (carregando) return <div style={{ padding: '20px' }}>Carregando sistema de monitoramento...</div>;
+  if (carregando) return <div style={{ padding: '30px' }}>⏳ Carregando monitoramento...</div>;
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>📊 Monitoramento de PEI - 2026</h1>
-        <button onClick={fetchAlunos} style={{ padding: '10px', cursor: 'pointer' }}>🔄 Atualizar Dados</button>
+    <div style={{ padding: '20px', backgroundColor: '#f9f9f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+      <header style={{ marginBottom: '30px', borderBottom: '2px solid #eee', paddingBottom: '10px' }}>
+        <h1 style={{ color: '#2c3e50', margin: 0 }}>📊 Monitoramento PEI 2026</h1>
+        <p style={{ color: '#7f8c8d' }}>Escola EEMDP2 - Legenda: ⚪ Pendente | 🟡 Correção | 🟢 OK</p>
       </header>
-      
-      <div style={{ marginBottom: '20px', fontSize: '14px' }}>
-        Legenda: ⚪ Não Iniciado | 🟡 Em Correção | 🟢 Concluído
-      </div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-        <thead>
-          <tr style={{ backgroundColor: '#f4f4f4', textAlign: 'left', borderBottom: '2px solid #ddd' }}>
-            <th style={{ padding: '12px' }}>Aluno</th>
-            <th style={{ padding: '12px' }}>Turma</th>
-            <th style={{ padding: '12px' }}>Disciplinas / Status (Clique para mudar)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {alunos.map(aluno => (
-            <tr key={aluno.id} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '12px', fontWeight: 'bold' }}>{aluno.nome}</td>
-              <td style={{ padding: '12px' }}>{aluno.turma}</td>
-              <td style={{ padding: '12px' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-                  {aluno.peiStatus.map(item => (
-                    <button
-                      key={item.disciplina_id}
-                      onClick={() => alternarStatus(aluno.id, item.disciplina_id, item.status)}
-                      style={getEstiloStatus(item.status)}
-                    >
-                      {item.disciplinas?.nome} {item.status === 'Concluído' ? '🟢' : item.status === 'Em Correção' ? '🟡' : '⚪'}
-                    </button>
-                  ))}
-                </div>
-              </td>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff', borderRadius: '8px', overflow: 'hidden' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#2c3e50', color: '#fff', textAlign: 'left' }}>
+              <th style={{ padding: '15px' }}>Aluno</th>
+              <th style={{ padding: '15px' }}>Turma</th>
+              <th style={{ padding: '15px' }}>Disciplinas (Sequência Prioritária)</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {alunos.map(aluno => (
+              <tr key={aluno.id} style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '15px', fontWeight: 'bold', color: '#34495e' }}>{aluno.nome}</td>
+                <td style={{ padding: '15px', color: '#7f8c8d' }}>{aluno.turma}</td>
+                <td style={{ padding: '15px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+                    {aluno.peiStatus.map(item => (
+                      <button
+                        key={item.disciplina_id}
+                        onClick={() => alternarStatus(aluno.id, item.disciplina_id, item.status)}
+                        style={getBotaoEstilo(item.status)}
+                        title="Clique para alternar o status"
+                      >
+                        {item.disciplinas?.nome} {item.status === 'Concluído' ? '🟢' : item.status === 'Em Correção' ? '🟡' : '⚪'}
+                      </button>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
