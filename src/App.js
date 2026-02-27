@@ -5,6 +5,8 @@ function App() {
   const [alunos, setAlunos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [filtroTurma, setFiltroTurma] = useState('Todas');
+  const [senhaInput, setSenhaInput] = useState('');
+  const SENHA_MESTRA = 'escola2026'; // <--- Altere sua senha aqui
 
   const fetchAlunos = async () => {
     setCarregando(true);
@@ -24,7 +26,6 @@ function App() {
         ...aluno,
         peiStatus: listaStatus.filter(s => s.aluno_id === aluno.id)
       }));
-
       setAlunos(alunosFormatados);
     } catch (error) {
       console.error("Erro:", error.message);
@@ -35,8 +36,17 @@ function App() {
 
   useEffect(() => { fetchAlunos(); }, []);
 
-  // --- FUNÇÃO PARA GERAR O TEXTO E COPIAR/ENVIAR ---
-  const gerarTextoPendencias = () => {
+  const verificarAcesso = () => {
+    if (senhaInput !== SENHA_MESTRA) {
+      alert("⚠️ Senha incorreta ou não informada! A edição está bloqueada.");
+      return false;
+    }
+    return true;
+  };
+
+  const copiarEEnviar = () => {
+    if (!verificarAcesso()) return;
+    
     const alunosFiltrados = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
     let mensagem = `*📌 RELATÓRIO DE PENDÊNCIAS PEI 2026*\n\n`;
     const turmasAgrupadas = {};
@@ -56,18 +66,16 @@ function App() {
     Object.keys(turmasAgrupadas).sort().forEach(turma => {
       mensagem += `📍 *TURMA: ${turma}*\n${turmasAgrupadas[turma].join('\n')}\n\n`;
     });
-    return mensagem;
-  };
 
-  const copiarEEnviar = () => {
-    const texto = gerarTextoPendencias();
-    navigator.clipboard.writeText(texto).then(() => {
-      alert("✅ Relatório copiado para a área de transferência!");
-      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
+    navigator.clipboard.writeText(mensagem).then(() => {
+      alert("✅ Relatório copiado! Abrindo WhatsApp...");
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`, '_blank');
     });
   };
 
   const alternarStatus = async (alunoId, disciplinaId, statusAtual) => {
+    if (!verificarAcesso()) return;
+
     const proximos = { 'Não Iniciado': 'Em Correção', 'Em Correção': 'Concluído', 'Concluído': 'Não Iniciado' };
     const novoStatus = proximos[statusAtual] || 'Não Iniciado';
 
@@ -83,7 +91,6 @@ function App() {
     }
   };
 
-  // --- ESTILOS COM HOVER ---
   const getBotaoEstilo = (status) => ({
     backgroundColor: status === 'Concluído' ? '#28a745' : status === 'Em Correção' ? '#ffc107' : '#fff',
     color: status === 'Concluído' ? '#fff' : '#333',
@@ -93,37 +100,46 @@ function App() {
     margin: '4px',
     fontSize: '13px',
     fontWeight: 'bold',
-    cursor: 'pointer',
+    cursor: senhaInput === SENHA_MESTRA ? 'pointer' : 'not-allowed',
     transition: 'transform 0.1s, filter 0.2s',
+    opacity: senhaInput === SENHA_MESTRA ? 1 : 0.7
   });
 
   const turmasUnicas = ['Todas', ...new Set(alunos.map(a => a.turma))];
   const alunosParaExibir = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
 
-  if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>⏳ Carregando Painel...</div>;
+  if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>⏳ Carregando Painel Seguro...</div>;
 
   return (
     <div style={{ padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh', fontFamily: 'sans-serif' }}>
-      {/* CSS Injetado para efeito Hover */}
       <style>{`
-        button:hover { filter: brightness(0.9); transform: scale(1.02); }
-        select:hover { border-color: #1a73e8; }
+        button:hover { filter: ${senhaInput === SENHA_MESTRA ? 'brightness(0.9)' : 'none'}; transform: ${senhaInput === SENHA_MESTRA ? 'scale(1.02)' : 'none'}; }
       `}</style>
 
-      <header style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '15px', marginBottom: '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+      <header style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '15px', marginBottom: '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
         <div>
-          <h1 style={{ color: '#2c3e50', margin: 0 }}>📊 Gestão de PEIs - EEMDP2</h1>
-          <p style={{ color: '#95a5a6', margin: '5px 0 0 0' }}>⚪ Pendente | 🟡 Correção | 🟢 Concluído</p>
+          <h1 style={{ color: '#2c3e50', margin: 0 }}>📊 PEI EEMDP2 - 2026</h1>
+          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+             <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#e74c3c' }}>🔐 Senha de Edição:</span>
+             <input 
+               type="password" 
+               placeholder="Digite aqui..." 
+               value={senhaInput} 
+               onChange={(e) => setSenhaInput(e.target.value)}
+               style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ddd' }}
+             />
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'pointer' }}>
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
             {turmasUnicas.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
           <button 
             onClick={copiarEEnviar} 
-            style={{ backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}
+            style={{ backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
           >
-            📋 Copiar e Enviar WhatsApp
+            📋 Copiar e Enviar
           </button>
         </div>
       </header>
@@ -134,7 +150,7 @@ function App() {
             <tr style={{ backgroundColor: '#2c3e50', color: '#fff', textAlign: 'left' }}>
               <th style={{ padding: '18px' }}>Estudante</th>
               <th style={{ padding: '18px' }}>Turma</th>
-              <th style={{ padding: '15px' }}>Disciplinas (Clique para mudar)</th>
+              <th style={{ padding: '15px' }}>Disciplinas</th>
             </tr>
           </thead>
           <tbody>
@@ -151,7 +167,6 @@ function App() {
                           key={item.disciplina_id} 
                           onClick={() => alternarStatus(aluno.id, item.disciplina_id, item.status)} 
                           style={getBotaoEstilo(item.status)}
-                          title={`Status: ${item.status}`}
                         >
                           {item.disciplinas?.nome}
                         </button>
