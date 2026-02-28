@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 
-// Importação das imagens que você subiu na pasta src
+// Importação das imagens da pasta src
 import brasao from './brasao-escola.png'; 
 import favicon from './favicon.ico';
 
@@ -30,7 +30,7 @@ function App() {
       }));
       setAlunos(alunosFormatados);
     } catch (error) {
-      console.error("Erro ao carregar dados:", error.message);
+      console.error("Erro ao carregar:", error.message);
     } finally {
       setCarregando(false);
     }
@@ -38,12 +38,27 @@ function App() {
 
   useEffect(() => {
     fetchAlunos();
-    
-    // Define o título e o ícone da aba (Favicon)
     document.title = "Gestão de PEIs - EEMDP2";
     const link = document.querySelector("link[rel~='icon']");
     if (link) link.href = favicon;
   }, []);
+
+  // --- FUNÇÃO DE BACKUP (DOWNLOAD JSON) ---
+  const fazerBackup = () => {
+    const dataHora = new Date().toLocaleString('pt-BR').replace(/\//g, '-').replace(/:/g, 'h').replace(', ', '_');
+    const nomeArquivo = `backup_pei_eemdp2_${dataHora}.json`;
+    
+    const blob = new Blob([JSON.stringify(alunos, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    link.href = url;
+    link.download = nomeArquivo;
+    link.click();
+    
+    URL.revokeObjectURL(url);
+    alert("💾 Backup baixado com sucesso!");
+  };
 
   const copiarEEnviar = () => {
     const alunosFiltrados = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
@@ -67,7 +82,7 @@ function App() {
     });
 
     navigator.clipboard.writeText(mensagem).then(() => {
-      alert("✅ Relatório copiado para a área de transferência!");
+      alert("✅ Relatório copiado!");
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`, '_blank');
     });
   };
@@ -98,23 +113,18 @@ function App() {
     fontSize: '14px', 
     fontWeight: 'bold',
     cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    opacity: 1
+    transition: 'all 0.2s ease'
   });
 
   const turmasUnicas = ['Todas', ...new Set(alunos.map(a => a.turma))];
   const alunosParaExibir = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
 
-  if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>⏳ Carregando sistema...</div>;
+  if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>⏳ Carregando...</div>;
 
   return (
     <div style={{ padding: '20px', backgroundColor: '#f0f2f5', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       <style>{`
-        .btn-disciplina:hover { 
-          filter: brightness(0.9); 
-          transform: translateY(-2px); 
-          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
+        .btn-disciplina:hover { filter: brightness(0.9); transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         .header-container {
           background-color: #fff; padding: 20px; border-radius: 15px; margin-bottom: 20px;
           box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: flex; justify-content: space-between;
@@ -132,17 +142,23 @@ function App() {
         </div>
 
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <div style={{ textAlign: 'right', marginRight: '10px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>TURMA:</label>
-            <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '10px', borderRadius: '8px', cursor: 'pointer', border: '1px solid #ddd' }}>
-              {turmasUnicas.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
+          <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+            {turmasUnicas.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          
+          {/* BOTÃO DE BACKUP */}
+          <button 
+            onClick={fazerBackup} 
+            style={{ backgroundColor: '#6c757d', color: '#fff', border: 'none', padding: '12px 18px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            💾 Backup
+          </button>
+
           <button 
             onClick={copiarEEnviar} 
-            style={{ backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '14px 24px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}
+            style={{ backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '12px 18px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}
           >
-            📱 Enviar Pendências
+            📱 WhatsApp
           </button>
         </div>
       </header>
