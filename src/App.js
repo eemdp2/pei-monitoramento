@@ -8,6 +8,7 @@ function App() {
   const [carregando, setCarregando] = useState(true);
   const [filtroTurma, setFiltroTurma] = useState('Todas');
   const [bimestre, setBimestre] = useState('1º Bimestre');
+  const [ultimaVerificacao, setUltimaVerificacao] = useState(localStorage.getItem('dataVerificacao') || 'Nenhuma realizada');
 
   const fetchAlunos = async (exibirCarregamento = true) => {
     if (exibirCarregamento) setCarregando(true);
@@ -64,9 +65,17 @@ function App() {
     if (link) link.href = favicon;
   }, [bimestre]);
 
+  const atualizarDataLocal = () => {
+    const agora = new Date().toLocaleString('pt-BR');
+    setUltimaVerificacao(agora);
+    localStorage.setItem('dataVerificacao', agora);
+  };
+
   const alternarStatus = async (alunoId, disciplinaId, statusAtual) => {
     const proximos = { 'Não Iniciado': 'Em Correção', 'Em Correção': 'Concluído', 'Concluído': 'Não Iniciado' };
     const novoStatus = proximos[statusAtual] || 'Não Iniciado';
+
+    atualizarDataLocal();
 
     setAlunos(prevAlunos => prevAlunos.map(aluno => {
       if (aluno.id === alunoId) {
@@ -85,10 +94,10 @@ function App() {
     }, { onConflict: ['aluno_id', 'disciplina_id', 'bimestre'] });
   };
 
-  // MODELO DE MENSAGEM WHATSAPP SOLICITADO
   const copiarEEnviar = () => {
     const alunosFiltrados = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
-    let mensagem = `*📌 PENDÊNCIAS PEI 2026 - ${bimestre}*\n\n`;
+    let mensagem = `*📌 PENDÊNCIAS PEI 2026 - ${bimestre}*\n`;
+    mensagem += `🗓️ _Verificado em: ${ultimaVerificacao}_\n\n`;
     
     const turmasUnicas = [...new Set(alunosFiltrados.map(a => a.turma))].sort();
 
@@ -114,7 +123,7 @@ function App() {
     });
 
     navigator.clipboard.writeText(mensagem).then(() => {
-      alert("✅ Relatório copiado no novo formato!");
+      alert("✅ Relatório copiado com data e hora!");
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`, '_blank');
     });
   };
@@ -141,13 +150,16 @@ function App() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <img src={brasao} alt="Escola" style={{ height: '55px' }} />
-            <h1 style={{ color: '#1a73e8', margin: 0, fontSize: '20px' }}>Gestão PEI - EEMDP2</h1>
+            <div>
+              <h1 style={{ color: '#1a73e8', margin: 0, fontSize: '20px' }}>Gestão PEI - EEMDP2</h1>
+              <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#666' }}>🕒 Última atualização: <b>{ultimaVerificacao}</b></p>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <select value={bimestre} onChange={(e) => setBimestre(e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '2px solid #1a73e8', fontWeight: 'bold', cursor: 'pointer' }}>
+            <select value={bimestre} onChange={(e) => setBimestre(e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '2px solid #1a73e8', fontWeight: 'bold' }}>
               <option>1º Bimestre</option><option>2º Bimestre</option><option>3º Bimestre</option><option>4º Bimestre</option>
             </select>
-            <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '1px solid #ddd', cursor: 'pointer' }}>
+            <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }}>
               <option>Todas</option>
               {[...new Set(alunos.map(a => a.turma))].map(t => <option key={t}>{t}</option>)}
             </select>
@@ -165,7 +177,7 @@ function App() {
             <span style={{ color: porc < 50 ? '#dc3545' : '#28a745' }}>{porc}% ({concluidos}/{total})</span>
           </div>
           <div style={{ width: '100%', height: '12px', backgroundColor: '#eee', borderRadius: '6px' }}>
-            <div style={{ width: `${porc}%`, height: '100%', backgroundColor: porc < 50 ? '#dc3545' : '#28a745', borderRadius: '6px', transition: '0.6s ease-in-out' }}></div>
+            <div style={{ width: `${porc}%`, height: '100%', backgroundColor: porc < 50 ? '#dc3545' : '#28a745', borderRadius: '6px', transition: '0.6s' }}></div>
           </div>
         </div>
       </header>
@@ -195,13 +207,12 @@ function App() {
                           backgroundColor: s.status === 'Concluído' ? '#28a745' : s.status === 'Em Correção' ? '#ffc107' : '#fff',
                           color: s.status === 'Concluído' ? '#fff' : '#333',
                           border: '1.5px solid #ccc', 
-                          padding: '12px 16px', // BOTÕES MAIORES PARA CELULAR
+                          padding: '12px 16px', 
                           borderRadius: '10px', 
                           cursor: 'pointer', 
                           fontSize: '13px', 
                           fontWeight: 'bold',
-                          minWidth: '100px',
-                          textAlign: 'center'
+                          minWidth: '100px'
                         }}
                       >
                         {s.disciplinas.nome}
