@@ -30,12 +30,18 @@ function App() {
         .eq('bimestre', bimestre);
 
       const alunosFormatados = listaAlunos.map(aluno => {
-        const ehEnsinoMedio = ['1', '2', '3'].includes(aluno.turma.trim().charAt(0));
+        const turmaLimpa = aluno.turma.trim();
+        const ehEnsinoMedio = ['1', '2', '3'].includes(turmaLimpa.charAt(0));
         
         const disciplinasFiltradas = listaDisciplinas.filter(disc => {
-          const nome = disc.nome.toLowerCase();
+          const nome = disc.nome.trim().toLowerCase();
+          
+          // Filtro Ensino Médio (Remove Ciências)
           if (ehEnsinoMedio && (nome.includes('ciencia') || nome === 'ciências')) return false;
-          if (!ehEnsinoMedio && ['física', 'química', 'biologia', 'sociologia', 'filosofia'].includes(nome)) return false;
+          
+          // Filtro Ensino Fundamental (Remove Física e Química)
+          if (!ehEnsinoMedio && (nome === 'quimica' || nome === 'química' || nome === 'fisica' || nome === 'física')) return false;
+          
           return true;
         });
 
@@ -52,7 +58,7 @@ function App() {
 
       setAlunos(alunosFormatados);
     } catch (error) {
-      console.error("Erro:", error.message);
+      console.error("Erro ao carregar dados:", error.message);
     } finally {
       setCarregando(false);
     }
@@ -123,7 +129,7 @@ function App() {
     });
 
     navigator.clipboard.writeText(mensagem).then(() => {
-      alert("✅ Relatório copiado com data e hora!");
+      alert("✅ Relatório copiado!");
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`, '_blank');
     });
   };
@@ -173,7 +179,7 @@ function App() {
 
         <div style={{ marginTop: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>
-            <span>Progresso Geral</span>
+            <span>Progresso Geral ({filtroTurma})</span>
             <span style={{ color: porc < 50 ? '#dc3545' : '#28a745' }}>{porc}% ({concluidos}/{total})</span>
           </div>
           <div style={{ width: '100%', height: '12px', backgroundColor: '#eee', borderRadius: '6px' }}>
@@ -207,7 +213,7 @@ function App() {
                           backgroundColor: s.status === 'Concluído' ? '#28a745' : s.status === 'Em Correção' ? '#ffc107' : '#fff',
                           color: s.status === 'Concluído' ? '#fff' : '#333',
                           border: '1.5px solid #ccc', 
-                          padding: '12px 16px', 
+                          padding: '12px 18px', // Botões maiores para mobile
                           borderRadius: '10px', 
                           cursor: 'pointer', 
                           fontSize: '13px', 
