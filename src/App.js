@@ -11,29 +11,26 @@ function App() {
   const [filtroTurma, setFiltroTurma] = useState('Todas');
   const [bimestre, setBimestre] = useState('1º Bimestre');
 
-  const fetchAlunos = async () => {
-    setCarregando(true);
+  // Função de busca com parâmetro para evitar o "pisca" de carregamento
+  const fetchAlunos = async (exibirCarregamento = true) => {
+    if (exibirCarregamento) setCarregando(true);
     try {
-      // 1. Busca TODOS os alunos para garantir que nomes e turmas apareçam
       const { data: listaAlunos } = await supabase
         .from('alunos')
         .select('*')
         .order('turma', { ascending: true })
         .order('nome', { ascending: true });
 
-      // 2. Busca as disciplinas para montar a estrutura dos botões
       const { data: listaDisciplinas } = await supabase
         .from('disciplinas')
         .select('*')
         .order('ordem_exibicao', { ascending: true });
 
-      // 3. Busca os status filtrando pelo BIMESTRE selecionado
       const { data: listaStatus } = await supabase
         .from('status_pei')
         .select(`status, aluno_id, disciplina_id, bimestre`)
         .eq('bimestre', bimestre);
 
-      // 4. Cruzamento de dados: Garante que o aluno apareça mesmo sem status no bimestre
       const alunosFormatados = listaAlunos.map(aluno => {
         const peiStatusDoAluno = listaDisciplinas.map(disc => {
           const statusSalvo = listaStatus?.find(s => s.aluno_id === aluno.id && s.disciplina_id === disc.id);
@@ -58,13 +55,28 @@ function App() {
     fetchAlunos();
     document.title = `PEI - ${bimestre}`;
     const link = document.querySelector("link[rel~='icon']");
-    if (link) link.href = favicon; // Define o ícone da aba
+    if (link) link.href = favicon;
   }, [bimestre]);
 
+  // Função de clique otimizada: muda a cor na tela antes de salvar no banco
   const alternarStatus = async (alunoId, disciplinaId, statusAtual) => {
     const proximos = { 'Não Iniciado': 'Em Correção', 'Em Correção': 'Concluído', 'Concluído': 'Não Iniciado' };
     const novoStatus = proximos[statusAtual] || 'Não Iniciado';
 
+    // 1. Atualização Otimista (Interface muda na hora)
+    setAlunos(prevAlunos => prevAlunos.map(aluno => {
+      if (aluno.id === alunoId) {
+        return {
+          ...aluno,
+          peiStatus: aluno.peiStatus.map(s => 
+            s.disciplina_id === disciplinaId ? { ...s, status: novoStatus } : s
+          )
+        };
+      }
+      return aluno;
+    }));
+
+    // 2. Salva no Supabase em segundo plano
     const { error } = await supabase
       .from('status_pei')
       .upsert({ 
@@ -74,7 +86,10 @@ function App() {
         bimestre: bimestre 
       }, { onConflict: ['aluno_id', 'disciplina_id', 'bimestre'] });
 
-    if (!error) fetchAlunos();
+    if (error) {
+      console.error("Erro ao salvar:", error.message);
+      fetchAlunos(false); // Recarrega do banco apenas se houver erro
+    }
   };
 
   const copiarEEnviar = () => {
@@ -132,7 +147,7 @@ function App() {
           }
         }
         alert("✅ Backup restaurado para este bimestre!");
-        fetchAlunos();
+        fetchAlunos(true);
       } catch (err) { alert("❌ Erro no arquivo."); }
     };
     reader.readAsText(arquivo);
@@ -162,7 +177,7 @@ function App() {
             <img src={brasao} alt="Brasão" style={{ height: '70px' }} />
             <div>
               <h1 style={{ color: '#1a73e8', margin: 0, fontSize: '26px' }}>Gestão de PEIs - EEMDP2</h1>
-              <p style={{ color: '#95a5a6', margin: '5px 0 0 0' }}>Legenda: ⚪ Pendente | 🟡 Correção | 🟢 Concluído</p>
+              <p style={{ color: '#95a5a6', margin: '5px 0 0 0' }}>{bimestre} | ⚪ Pendente | 🟡 Correção | 🟢 Concluído</p>
             </div>
           </div>
 
@@ -202,7 +217,12 @@ function App() {
                 <td style={{ padding: '10px 18px' }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap' }}>
                     {aluno.peiStatus.map(item => (
-                      <button key={item.disciplina_id} className="btn-disciplina" onClick={() => alternarStatus(aluno.id, item.disciplina_id, item.status)} style={getBotaoEstilo(item.status)}>
+                      <button 
+                        key={item.disciplina_id} 
+                        className="btn-disciplina" 
+                        onClick={() => alternarStatus(aluno.id, item.disciplina_id, item.status)} 
+                        style={getBotaoEstilo(item.status)}
+                      >
                         {item.disciplinas?.nome}
                       </button>
                     ))}
