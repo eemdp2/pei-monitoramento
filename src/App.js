@@ -11,7 +11,6 @@ function App() {
   const [filtroTurma, setFiltroTurma] = useState('Todas');
   const [bimestre, setBimestre] = useState('1º Bimestre');
 
-  // Busca dados com inteligência de filtro por segmento (Fundamental vs Médio)
   const fetchAlunos = async (exibirCarregamento = true) => {
     if (exibirCarregamento) setCarregando(true);
     try {
@@ -32,12 +31,10 @@ function App() {
         .eq('bimestre', bimestre);
 
       const alunosFormatados = listaAlunos.map(aluno => {
-        // Lógica para identificar Ensino Médio (Turmas começando com 1, 2 ou 3)
         const ehEnsinoMedio = /^[123]/.test(aluno.turma);
         
-        // Filtra as disciplinas: Remove "Ciências" do Médio e matérias do Médio do Fundamental
         const disciplinasFiltradas = listaDisciplinas.filter(disc => {
-          if (ehEnsinoMedio && disc.nome === 'Ciências') return false; 
+          if (ehEnsinoMedio && disc.nome === 'Ciências') return false;
           if (!ehEnsinoMedio && ['Física', 'Química', 'Biologia', 'Sociologia', 'Filosofia'].includes(disc.nome)) return false;
           return true;
         });
@@ -68,7 +65,6 @@ function App() {
     if (link) link.href = favicon;
   }, [bimestre]);
 
-  // Atualização instantânea na tela (Otimista)
   const alternarStatus = async (alunoId, disciplinaId, statusAtual) => {
     const proximos = { 'Não Iniciado': 'Em Correção', 'Em Correção': 'Concluído', 'Concluído': 'Não Iniciado' };
     const novoStatus = proximos[statusAtual] || 'Não Iniciado';
@@ -96,6 +92,14 @@ function App() {
 
     if (error) fetchAlunos(false); 
   };
+
+  // --- LÓGICA DE ESTATÍSTICAS ---
+  const alunosParaExibir = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
+  const totalPeis = alunosParaExibir.reduce((acc, aluno) => acc + aluno.peiStatus.length, 0);
+  const concluidos = alunosParaExibir.reduce((acc, aluno) => 
+    acc + aluno.peiStatus.filter(s => s.status === 'Concluído').length, 0
+  );
+  const porcentagem = totalPeis > 0 ? Math.round((concluidos / totalPeis) * 100) : 0;
 
   const copiarEEnviar = () => {
     const alunosFiltrados = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
@@ -166,7 +170,6 @@ function App() {
   });
 
   const turmasUnicas = ['Todas', ...new Set(alunos.map(a => a.turma))];
-  const alunosParaExibir = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
 
   if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>⏳ Carregando {bimestre}...</div>;
 
@@ -193,6 +196,17 @@ function App() {
             <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #ddd' }}>
               {turmasUnicas.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
+          </div>
+        </div>
+
+        {/* BARRA DE PROGRESSO */}
+        <div style={{ marginTop: '20px', backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '10px', border: '1px solid #eee' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px', fontWeight: 'bold' }}>
+            <span>Progresso da Turma ({filtroTurma})</span>
+            <span style={{ color: '#28a745' }}>{concluidos} de {totalPeis} concluídos ({porcentagem}%)</span>
+          </div>
+          <div style={{ width: '100%', height: '12px', backgroundColor: '#e9ecef', borderRadius: '6px', overflow: 'hidden' }}>
+            <div style={{ width: `${porcentagem}%`, height: '100%', backgroundColor: '#28a745', transition: 'width 0.5s ease' }}></div>
           </div>
         </div>
 
