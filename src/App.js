@@ -29,21 +29,15 @@ function App() {
         .eq('bimestre', bimestre);
 
       const alunosFormatados = listaAlunos.map(aluno => {
-        // 1. Identifica se é Ensino Médio (Turmas que começam com 1, 2 ou 3)
-        const turmaLimpa = aluno.turma.trim();
-        const ehEnsinoMedio = ['1', '2', '3'].includes(turmaLimpa.charAt(0));
+        // Regra do Ensino Médio: Turmas que começam com 1, 2 ou 3
+        const ehEnsinoMedio = ['1', '2', '3'].includes(aluno.turma.trim().charAt(0));
         
-        // 2. Filtro "Blindado" de Disciplinas
         const disciplinasFiltradas = listaDisciplinas.filter(disc => {
-          // Normaliza o nome para comparar (remove acentos e espaços, fica tudo minúsculo)
-          const nomeNormalizado = disc.nome.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          
-          // Se for Ensino Médio e a matéria for "ciencias", ela é removida
-          if (ehEnsinoMedio && nomeNormalizado === 'ciencias') return false; 
-          
-          // Se for Fundamental, remove as específicas do Médio
-          if (!ehEnsinoMedio && ['fisica', 'quimica', 'biologia', 'sociologia', 'filosofia'].includes(nomeNormalizado)) return false;
-          
+          const nome = disc.nome.toLowerCase();
+          // Remove CIÊNCIAS se for Ensino Médio
+          if (ehEnsinoMedio && (nome.includes('ciencia') || nome === 'ciências')) return false;
+          // Remove matérias do Médio se for Fundamental
+          if (!ehEnsinoMedio && ['física', 'química', 'biologia', 'sociologia', 'filosofia'].includes(nome)) return false;
           return true;
         });
 
@@ -60,7 +54,7 @@ function App() {
 
       setAlunos(alunosFormatados);
     } catch (error) {
-      console.error("Erro ao carregar dados:", error.message);
+      console.error("Erro:", error.message);
     } finally {
       setCarregando(false);
     }
@@ -90,87 +84,106 @@ function App() {
     }));
 
     await supabase.from('status_pei').upsert({ 
-      aluno_id: alunoId, 
-      disciplina_id: disciplinaId, 
-      status: novoStatus,
-      bimestre: bimestre 
+      aluno_id: alunoId, disciplina_id: disciplinaId, status: novoStatus, bimestre: bimestre 
     }, { onConflict: ['aluno_id', 'disciplina_id', 'bimestre'] });
   };
 
-  const alunosParaExibir = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
-  const totalPeis = alunosParaExibir.reduce((acc, aluno) => acc + aluno.peiStatus.length, 0);
-  const concluidos = alunosParaExibir.reduce((acc, aluno) => 
-    acc + aluno.peiStatus.filter(s => s.status === 'Concluído').length, 0
-  );
-  const porcentagem = totalPeis > 0 ? Math.round((concluidos / totalPeis) * 100) : 0;
+  const copiarEEnviar = () => {
+    const alunosFiltrados = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
+    let mensagem = `*📌 PENDÊNCIAS PEI 2026 - ${bimestre}*\n\n`;
+    
+    alunosFiltrados.forEach(aluno => {
+      const faltantes = aluno.peiStatus.filter(s => s.status !== 'Concluído').map(s => s.disciplinas.nome);
+      if (faltantes.length > 0) {
+        mensagem += `• *${aluno.nome}* (${aluno.turma}): ${faltantes.join(', ')}\n`;
+      }
+    });
 
-  // Define a cor da barra de progresso baseada na porcentagem
-  const getCorBarra = () => {
-    if (porcentagem < 40) return '#dc3545'; // Vermelho
-    if (porcentagem < 80) return '#ffc107'; // Amarelo
-    return '#28a745'; // Verde
+    navigator.clipboard.writeText(mensagem).then(() => {
+      alert("Relatório copiado!");
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`, '_blank');
+    });
   };
+
+  const fazerBackup = () => {
+    const blob = new Blob([JSON.stringify(alunos, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `backup_pei_${bimestre}.json`;
+    link.click();
+  };
+
+  // Cálculos da Barra de Progresso
+  const alunosParaExibir = filtroTurma === 'Todas' ? alunos : alunos.filter(a => a.turma === filtroTurma);
+  const total = alunosParaExibir.reduce((acc, a) => acc + a.peiStatus.length, 0);
+  const concluidos = alunosParaExibir.reduce((acc, a) => acc + a.peiStatus.filter(s => s.status === 'Concluído').length, 0);
+  const porc = total > 0 ? Math.round((concluidos / total) * 100) : 0;
+
+  if (carregando) return <div style={{ padding: '50px', textAlign: 'center' }}>⏳ Carregando {bimestre}...</div>;
 
   return (
     <div style={{ padding: '20px', backgroundColor: '#f0f2f5', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       <header style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '15px', marginBottom: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <img src={brasao} alt="Brasão" style={{ height: '60px' }} />
-            <div>
-              <h1 style={{ color: '#1a73e8', margin: 0, fontSize: '22px' }}>Gestão de PEIs - EEMDP2</h1>
-              <p style={{ color: '#95a5a6', margin: '5px 0 0 0', fontSize: '13px' }}>{bimestre} | ⚪ Pendente | 🟡 Correção | 🟢 Concluído</p>
-            </div>
+            <img src={brasao} alt="Escola" style={{ height: '60px' }} />
+            <h1 style={{ color: '#1a73e8', margin: 0, fontSize: '22px' }}>Gestão PEI - EEMDP2</h1>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <select value={bimestre} onChange={(e) => setBimestre(e.target.value)} style={{ padding: '10px', borderRadius: '10px', border: '2px solid #1a73e8', fontWeight: 'bold' }}>
+            <select value={bimestre} onChange={(e) => setBimestre(e.target.value)} style={{ padding: '10px', borderRadius: '8px', border: '2px solid #1a73e8' }}>
               <option>1º Bimestre</option><option>2º Bimestre</option><option>3º Bimestre</option><option>4º Bimestre</option>
             </select>
-            <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #ddd' }}>
-              {['Todas', ...new Set(alunos.map(a => a.turma))].map(t => <option key={t} value={t}>{t}</option>)}
+            <select value={filtroTurma} onChange={(e) => setFiltroTurma(e.target.value)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+              <option>Todas</option>
+              {[...new Set(alunos.map(a => a.turma))].map(t => <option key={t}>{t}</option>)}
             </select>
           </div>
         </div>
 
-        {/* BARRA DE PROGRESSO DINÂMICA */}
-        <div style={{ marginTop: '10px', backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '10px', border: '1px solid #eee' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold' }}>
-            <span>Status da Meta ({filtroTurma})</span>
-            <span style={{ color: getCorBarra() }}>{porcentagem}% Concluído</span>
+        <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
+          <button onClick={fazerBackup} style={{ backgroundColor: '#6c757d', color: '#fff', padding: '10px 15px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>💾 Baixar Backup</button>
+          <button onClick={copiarEEnviar} style={{ backgroundColor: '#25D366', color: '#fff', padding: '10px 15px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>📱 WhatsApp</button>
+        </div>
+
+        <div style={{ marginTop: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 'bold', marginBottom: '5px' }}>
+            <span>Progresso: {porc}%</span>
+            <span>{concluidos}/{total} PEIs</span>
           </div>
-          <div style={{ width: '100%', height: '12px', backgroundColor: '#e9ecef', borderRadius: '6px', overflow: 'hidden' }}>
-            <div style={{ width: `${porcentagem}%`, height: '100%', backgroundColor: getCorBarra(), transition: 'all 0.5s ease' }}></div>
+          <div style={{ width: '100%', height: '10px', backgroundColor: '#eee', borderRadius: '5px' }}>
+            <div style={{ width: `${porc}%`, height: '100%', backgroundColor: porc < 50 ? '#dc3545' : '#28a745', borderRadius: '5px', transition: '0.5s' }}></div>
           </div>
         </div>
       </header>
 
-      <div style={{ overflowX: 'auto', borderRadius: '15px', boxShadow: '0 8px 24px rgba(0,0,0,0.05)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#1a73e8', color: '#fff', textAlign: 'left' }}>
-              <th style={{ padding: '15px' }}>Estudante</th>
-              <th style={{ padding: '15px' }}>Turma</th>
-              <th style={{ padding: '15px' }}>Status das Disciplinas</th>
+      <div style={{ backgroundColor: '#fff', borderRadius: '15px', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead style={{ backgroundColor: '#1a73e8', color: '#fff' }}>
+            <tr>
+              <th style={{ padding: '15px', textAlign: 'left' }}>Estudante</th>
+              <th style={{ padding: '15px', textAlign: 'left' }}>Turma</th>
+              <th style={{ padding: '15px', textAlign: 'left' }}>Status</th>
             </tr>
           </thead>
           <tbody>
             {alunosParaExibir.map(aluno => (
-              <tr key={aluno.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td style={{ padding: '12px 15px', fontWeight: 'bold', color: '#2c3e50' }}>{aluno.nome}</td>
-                <td style={{ padding: '12px 15px', color: '#666' }}>{aluno.turma}</td>
-                <td style={{ padding: '8px' }}>
+              <tr key={aluno.id} style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '15px', fontWeight: 'bold' }}>{aluno.nome}</td>
+                <td style={{ padding: '15px' }}>{aluno.turma}</td>
+                <td style={{ padding: '10px' }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                    {aluno.peiStatus.map(item => (
+                    {aluno.peiStatus.map(s => (
                       <button 
-                        key={item.disciplina_id} 
-                        onClick={() => alternarStatus(aluno.id, item.disciplina_id, item.status)}
+                        key={s.disciplina_id} 
+                        onClick={() => alternarStatus(aluno.id, s.disciplina_id, s.status)}
                         style={{
-                          backgroundColor: item.status === 'Concluído' ? '#28a745' : item.status === 'Em Correção' ? '#ffc107' : '#fff',
-                          color: item.status === 'Concluído' ? '#fff' : '#333',
-                          border: '1px solid #ccc', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer'
+                          backgroundColor: s.status === 'Concluído' ? '#28a745' : s.status === 'Em Correção' ? '#ffc107' : '#fff',
+                          color: s.status === 'Concluído' ? '#fff' : '#333',
+                          border: '1px solid #ccc', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold'
                         }}
                       >
-                        {item.disciplinas?.nome}
+                        {s.disciplinas.nome}
                       </button>
                     ))}
                   </div>
