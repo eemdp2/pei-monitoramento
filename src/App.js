@@ -31,18 +31,26 @@ function App() {
 
       const alunosFormatados = listaAlunos.map(aluno => {
         const turmaLimpa = aluno.turma.trim();
+        // Identifica se é Ensino Médio (Turmas 1º, 2º e 3º)
         const ehEnsinoMedio = ['1', '2', '3'].includes(turmaLimpa.charAt(0));
         
         const disciplinasFiltradas = listaDisciplinas.filter(disc => {
           const nome = disc.nome.trim().toLowerCase();
           
-          // Filtro Ensino Médio (Remove Ciências)
-          if (ehEnsinoMedio && (nome.includes('ciencia') || nome === 'ciências')) return false;
+          // --- REGRAS PARA ENSINO MÉDIO ---
+          if (ehEnsinoMedio) {
+            // No Médio, removemos CIÊNCIAS
+            if (nome.includes('ciencia') || nome === 'ciências') return false;
+            return true; 
+          } 
           
-          // Filtro Ensino Fundamental (Remove Física e Química)
-          if (!ehEnsinoMedio && (nome === 'quimica' || nome === 'química' || nome === 'fisica' || nome === 'física')) return false;
-          
-          return true;
+          // --- REGRAS PARA ENSINO FUNDAMENTAL ---
+          else {
+            // No Fundamental, removemos TODAS as específicas do Médio
+            const materiasDoMedio = ['quimica', 'química', 'fisica', 'física', 'sociologia', 'filosofia', 'biologia'];
+            if (materiasDoMedio.includes(nome)) return false;
+            return true;
+          }
         });
 
         const peiStatusDoAluno = disciplinasFiltradas.map(disc => {
@@ -213,7 +221,7 @@ function App() {
                           backgroundColor: s.status === 'Concluído' ? '#28a745' : s.status === 'Em Correção' ? '#ffc107' : '#fff',
                           color: s.status === 'Concluído' ? '#fff' : '#333',
                           border: '1.5px solid #ccc', 
-                          padding: '12px 18px', // Botões maiores para mobile
+                          padding: '12px 18px', 
                           borderRadius: '10px', 
                           cursor: 'pointer', 
                           fontSize: '13px', 
